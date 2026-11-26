@@ -76,15 +76,15 @@ class TypewriterKeyboardView(context: Context) : View(context) {
     private var combY = 0f
     private var navInset = 0
 
-    private val tineX = FloatArray(19)
-    private val tineKick = FloatArray(19)
+    private val tineX = FloatArray(17)
+    private val tineKick = FloatArray(17)
     private var lastFrame = 0L
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bgPaint = Paint()
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+        typeface = Typeface.SERIF
         color = CREAM
     }
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -138,7 +138,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         val screenH = resources.displayMetrics.heightPixels
         val contentW = min(w - 12 * d, 560 * d)
         unit = contentW / 10f
-        rowPitch = min(unit * 1.3f, screenH * 0.46f / (4 + TOP + BOTTOM))
+        rowPitch = min(unit * 1.22f, screenH * 0.46f / (4 + TOP + BOTTOM))
         topArea = rowPitch * TOP
         bottomArea = rowPitch * BOTTOM
         val h = topArea + rowPitch * 4 + bottomArea + navInset
@@ -149,10 +149,10 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         dia = min(unit * 1.0f, rowPitch * 0.92f)
         combY = topArea * 0.8f
         val r = dia / 2
-        rimShader = LinearGradient(0f, -r, 0f, r, intArrayOf(0xFFC4C4CA.toInt(), 0xFF5E5E64.toInt(), 0xFF1A1A1C.toInt()), null, Shader.TileMode.CLAMP)
-        faceShader = RadialGradient(0f, -r * 0.35f, r * 1.25f, 0xFF3B3B3F.toInt(), 0xFF121213.toInt(), Shader.TileMode.CLAMP)
+        rimShader = LinearGradient(0f, -r, 0f, r, intArrayOf(0xFFB4B4B9.toInt(), 0xFF77777C.toInt(), 0xFF4A4A4F.toInt()), null, Shader.TileMode.CLAMP)
+        faceShader = RadialGradient(0f, -r * 0.35f, r * 1.25f, 0xFF2C2C2F.toInt(), 0xFF151516.toInt(), Shader.TileMode.CLAMP)
         redShader = RadialGradient(0f, -r * 0.35f, r * 1.25f, 0xFFC2333A.toInt(), 0xFF6A1014.toInt(), Shader.TileMode.CLAMP)
-        pillFaceShader = LinearGradient(0f, -r, 0f, r, 0xFF38383C.toInt(), 0xFF131314.toInt(), Shader.TileMode.CLAMP)
+        pillFaceShader = LinearGradient(0f, -r, 0f, r, 0xFF2A2A2D.toInt(), 0xFF151516.toInt(), Shader.TileMode.CLAMP)
         pillRedShader = LinearGradient(0f, -r, 0f, r, 0xFFC2333A.toInt(), 0xFF6A1014.toInt(), Shader.TileMode.CLAMP)
         metalShader = LinearGradient(0f, 0f, 0f, topArea, 0xFF4A4A4F.toInt(), 0xFF1C1C1E.toInt(), Shader.TileMode.CLAMP)
         bgPaint.shader = LinearGradient(0f, 0f, 0f, h.toFloat(), 0xFFE2E3E7.toInt(), 0xFFC3C5CB.toInt(), Shader.TileMode.CLAMP)
@@ -165,7 +165,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         boxes.clear()
         if (unit <= 0f || width == 0) return
         val left = (width - unit * 10) / 2
-        for (i in tineX.indices) tineX[i] = left + unit * (0.5f + i * 0.5f)
+        for (i in tineX.indices) tineX[i] = left + unit * (1f + i * 0.5f)
         for ((ri, row) in page.withIndex()) {
             var total = 0f
             for (k in row) total += k.weight
@@ -175,17 +175,18 @@ class TypewriterKeyboardView(context: Context) : View(context) {
                 val kw = k.weight * unit
                 val cx = x + kw / 2
                 val halfW = if (k.weight == 1f) dia / 2 else (kw - (unit - dia)) / 2
-                // Keep levers out from behind the caps of the rows above.
+                // Shift and backspace hang their levers off the outer edge, clear of the caps above.
                 val rodX = when {
-                    ri == 2 && k.code == Code.TEXT -> cx - unit * 0.25f
-                    ri == 2 && cx < width / 2 -> cx - halfW * 0.9f
-                    ri == 2 -> cx + halfW * 0.9f
-                    else -> cx
+                    ri != 2 || k.code == Code.TEXT -> cx
+                    cx < width / 2 -> cx - halfW * 0.9f
+                    else -> cx + halfW * 0.9f
                 }
                 var tine = 0
                 for (i in tineX.indices) if (abs(tineX[i] - rodX) < abs(tineX[tine] - rodX)) tine = i
-                // Side levers tuck in behind the top-row caps instead of reaching the comb.
-                val rodTop = if (ri == 2 && k.code != Code.TEXT) topArea + rowPitch * 0.5f else combY
+                // A lever that lines up with a type bar runs up into it; any other one
+                // stops out of sight behind a cap in the top row.
+                val aligned = abs(tineX[tine] - rodX) < unit * 0.05f
+                val rodTop = if (ri > 0 && aligned) combY else topArea + rowPitch * 0.5f
                 boxes += Box(k, ri, cx, cy, halfW, rodX, rodTop, tine)
                 x += kw
             }
@@ -235,8 +236,8 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         paint.color = 0x26000000
         paint.strokeWidth = rodW
         for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX + off, b.rodTop + off, b.rodX + off, b.cy + off, paint)
-        paint.strokeWidth = unit * 0.1f
-        for (i in tineX.indices) canvas.drawLine(tineX[i] + off, tineTop(i) + off, tineX[i] + off, combY + off * 2, paint)
+        paint.strokeWidth = unit * 0.12f
+        for (i in tineX.indices) canvas.drawLine(tineX[i] + off, tineTop(i) + off * 2, tineX[i] + off, topArea + rowPitch * 0.5f, paint)
 
         // Levers.
         paint.color = 0xFF29292C.toInt()
@@ -246,36 +247,35 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         paint.strokeWidth = rodW * 0.3f
         for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX - rodW * 0.25f, b.rodTop, b.rodX - rodW * 0.25f, b.cy + sink(b), paint)
 
-        // Type bars: hairpin loops hanging on the comb rail.
-        val loopW = unit * 0.2f
+        // Type bars: thick hooked bars rising out from behind the top row.
+        val barW = unit * 0.12f
+        val hook = unit * 0.1f
+        val bottom = topArea + rowPitch * 0.5f
         paint.style = Paint.Style.STROKE
+        paint.strokeJoin = Paint.Join.ROUND
         for (i in tineX.indices) {
+            val x = tineX[i]
             val top = tineTop(i)
-            rect.set(tineX[i] - loopW / 2, top, tineX[i] + loopW / 2, combY + topArea * 0.12f)
+            path.rewind()
+            path.moveTo(x, bottom)
+            path.lineTo(x, top + hook)
+            rect.set(x - hook * 2, top, x, top + hook * 2)
+            path.arcTo(rect, 0f, -150f)
             paint.color = Color.BLACK // shaders are modulated by the paint's alpha
             paint.shader = metalShader
-            paint.strokeWidth = unit * 0.075f
-            canvas.drawRoundRect(rect, loopW / 2, loopW / 2, paint)
+            paint.strokeWidth = barW
+            canvas.drawPath(path, paint)
             paint.shader = null
-            paint.color = 0x38FFFFFF
-            paint.strokeWidth = unit * 0.016f
-            canvas.drawLine(rect.left, top + loopW / 2, rect.left, combY, paint)
+            paint.color = 0x30FFFFFF
+            paint.strokeWidth = barW * 0.18f
+            canvas.drawLine(x - barW * 0.22f, top + hook * 1.4f, x - barW * 0.22f, bottom, paint)
         }
-
-        // Comb rail.
-        paint.style = Paint.Style.FILL
-        paint.color = 0xFF1D1D1F.toInt()
-        val railH = max(2f * d, topArea * 0.07f)
-        rect.set(tineX.first() - loopW, combY - railH / 2, tineX.last() + loopW, combY + railH / 2)
-        canvas.drawRoundRect(rect, railH / 2, railH / 2, paint)
-        paint.color = 0x40FFFFFF
-        canvas.drawRect(rect.left + railH, rect.top, rect.right - railH, rect.top + railH * 0.25f, paint)
     }
 
     private fun tineTop(i: Int): Float {
         val k = tineKick[i]
         val lift = if (k > 0f) sin(Math.PI * (1f - k)).toFloat() * topArea * 0.16f else 0f
-        return topArea * 0.22f - lift
+        return topArea * 0.2f - lift
     }
 
     private fun drawSpaceLinkage(canvas: Canvas) {
@@ -344,10 +344,10 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         canvas.drawRoundRect(rect, r, r, paint)
         paint.shader = null
         paint.color = 0xFF070708.toInt()
-        val g = r * 0.12f
+        val g = r * 0.15f
         rect.set(-hw + g, -r + g, hw - g, r - g)
         canvas.drawRoundRect(rect, r, r, paint)
-        val f = r * 0.19f
+        val f = r * 0.2f
         paint.shader = when {
             b.key.red && round -> redShader
             b.key.red -> pillRedShader
@@ -366,8 +366,6 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         if (round) {
             rect.set(-r + hi, -r + hi, r - hi, r - hi)
             canvas.drawArc(rect, 215f, 110f, false, paint)
-        } else {
-            canvas.drawLine(-hw + r * 0.7f, -r + hi, hw - r * 0.7f, -r + hi, paint)
         }
         if (p > 0f) {
             paint.style = Paint.Style.FILL
@@ -386,7 +384,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
     private fun drawLabel(canvas: Canvas, label: String, hw: Float, r: Float) {
         if (label.isEmpty()) return
         val plain = label.length == 1
-        textPaint.textSize = if (plain) r * 1.08f else if (label[0].code > 0x2000) r * 0.95f else r * 0.82f
+        textPaint.textSize = if (plain) r * 1.0f else if (label[0].code > 0x2000) r * 0.95f else r * 0.8f
         val maxW = (hw - r * 0.3f) * 2
         val w = textPaint.measureText(label)
         if (w > maxW) textPaint.textSize *= maxW / w
@@ -397,7 +395,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
     private fun drawIcon(canvas: Canvas, icon: Icon, r: Float) {
         val u = r * 0.92f
         iconPaint.style = Paint.Style.STROKE
-        iconPaint.strokeWidth = r * 0.1f
+        iconPaint.strokeWidth = r * 0.075f
         path.rewind()
         when (icon) {
             Icon.SHIFT -> {
@@ -439,7 +437,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
                 canvas.drawPath(path, iconPaint)
             }
             Icon.EMOJI -> {
-                iconPaint.strokeWidth = r * 0.085f
+                iconPaint.strokeWidth = r * 0.07f
                 canvas.drawCircle(0f, 0f, 0.46f * u, iconPaint)
                 rect.set(-0.26f * u, -0.24f * u, 0.26f * u, 0.26f * u)
                 canvas.drawArc(rect, 25f, 130f, false, iconPaint)
