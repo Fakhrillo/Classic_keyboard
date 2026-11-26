@@ -58,7 +58,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
             invalidate()
         }
 
-    private class Box(val key: Key, val row: Int, val cx: Float, val cy: Float, val halfW: Float, val rodX: Float, val tine: Int) {
+    private class Box(val key: Key, val row: Int, val cx: Float, val cy: Float, val halfW: Float, val rodX: Float, val rodTop: Float, val tine: Int) {
         var press = 0f
         var down = false
     }
@@ -146,10 +146,10 @@ class TypewriterKeyboardView(context: Context) : View(context) {
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        dia = min(unit * 0.97f, rowPitch * 0.9f)
+        dia = min(unit * 1.0f, rowPitch * 0.92f)
         combY = topArea * 0.8f
         val r = dia / 2
-        rimShader = LinearGradient(0f, -r, 0f, r, intArrayOf(0xFF8A8A90.toInt(), 0xFF3A3A3E.toInt(), 0xFF111113.toInt()), null, Shader.TileMode.CLAMP)
+        rimShader = LinearGradient(0f, -r, 0f, r, intArrayOf(0xFFC4C4CA.toInt(), 0xFF5E5E64.toInt(), 0xFF1A1A1C.toInt()), null, Shader.TileMode.CLAMP)
         faceShader = RadialGradient(0f, -r * 0.35f, r * 1.25f, 0xFF3B3B3F.toInt(), 0xFF121213.toInt(), Shader.TileMode.CLAMP)
         redShader = RadialGradient(0f, -r * 0.35f, r * 1.25f, 0xFFC2333A.toInt(), 0xFF6A1014.toInt(), Shader.TileMode.CLAMP)
         pillFaceShader = LinearGradient(0f, -r, 0f, r, 0xFF38383C.toInt(), 0xFF131314.toInt(), Shader.TileMode.CLAMP)
@@ -184,7 +184,9 @@ class TypewriterKeyboardView(context: Context) : View(context) {
                 }
                 var tine = 0
                 for (i in tineX.indices) if (abs(tineX[i] - rodX) < abs(tineX[tine] - rodX)) tine = i
-                boxes += Box(k, ri, cx, cy, halfW, rodX, tine)
+                // Side levers tuck in behind the top-row caps instead of reaching the comb.
+                val rodTop = if (ri == 2 && k.code != Code.TEXT) topArea + rowPitch * 0.5f else combY
+                boxes += Box(k, ri, cx, cy, halfW, rodX, rodTop, tine)
                 x += kw
             }
         }
@@ -232,17 +234,17 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         // Soft shadows cast on the body, down and to the right.
         paint.color = 0x26000000
         paint.strokeWidth = rodW
-        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX + off, combY + off, b.rodX + off, b.cy + off, paint)
+        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX + off, b.rodTop + off, b.rodX + off, b.cy + off, paint)
         paint.strokeWidth = unit * 0.1f
         for (i in tineX.indices) canvas.drawLine(tineX[i] + off, tineTop(i) + off, tineX[i] + off, combY + off * 2, paint)
 
         // Levers.
         paint.color = 0xFF29292C.toInt()
         paint.strokeWidth = rodW
-        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX, combY, b.rodX, b.cy + sink(b), paint)
+        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX, b.rodTop, b.rodX, b.cy + sink(b), paint)
         paint.color = 0x55FFFFFF
         paint.strokeWidth = rodW * 0.3f
-        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX - rodW * 0.25f, combY, b.rodX - rodW * 0.25f, b.cy + sink(b), paint)
+        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX - rodW * 0.25f, b.rodTop, b.rodX - rodW * 0.25f, b.cy + sink(b), paint)
 
         // Type bars: hairpin loops hanging on the comb rail.
         val loopW = unit * 0.2f
@@ -342,10 +344,10 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         canvas.drawRoundRect(rect, r, r, paint)
         paint.shader = null
         paint.color = 0xFF070708.toInt()
-        val g = r * 0.1f
+        val g = r * 0.12f
         rect.set(-hw + g, -r + g, hw - g, r - g)
         canvas.drawRoundRect(rect, r, r, paint)
-        val f = r * 0.17f
+        val f = r * 0.19f
         paint.shader = when {
             b.key.red && round -> redShader
             b.key.red -> pillRedShader
