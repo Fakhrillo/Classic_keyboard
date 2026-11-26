@@ -4,6 +4,7 @@ import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.os.Build
 import android.os.SystemClock
 import android.text.InputType
 import android.view.KeyEvent
@@ -49,11 +50,21 @@ class TypewriterIME : InputMethodService(), TypewriterKeyboardView.Listener {
         super.onDestroy()
     }
 
-    override fun onCreateInputView(): View =
-        TypewriterKeyboardView(this).also {
+    override fun onCreateInputView(): View {
+        // Blend the system navigation bar into the keyboard body.
+        window?.window?.let { w ->
+            @Suppress("DEPRECATION")
+            w.navigationBarColor = 0xFFC3C5CB.toInt()
+            if (Build.VERSION.SDK_INT >= 26) {
+                @Suppress("DEPRECATION")
+                w.decorView.systemUiVisibility = w.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+        }
+        return TypewriterKeyboardView(this).also {
             it.listener = this
             view = it
         }
+    }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)

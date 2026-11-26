@@ -29,8 +29,7 @@ class MainActivity : Activity() {
 
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad * 2, pad, pad)
-            fitsSystemWindows = true
+            setPadding(pad, pad, pad, pad)
         }
         fun add(v: View) = column.addView(
             v,
@@ -76,7 +75,10 @@ class MainActivity : Activity() {
             typeface = Typeface.SERIF
         })
 
-        setContentView(ScrollView(this).apply { addView(column) })
+        setContentView(ScrollView(this).apply {
+            fitsSystemWindows = true
+            addView(column)
+        })
     }
 
     override fun onResume() {
