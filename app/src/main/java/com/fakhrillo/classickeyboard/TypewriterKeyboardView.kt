@@ -242,7 +242,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX, combY, b.rodX, b.cy + sink(b), paint)
         paint.color = 0x55FFFFFF
         paint.strokeWidth = rodW * 0.3f
-        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX - rodW * 0.25f, combY, b.rodX - rodW * 0.25f, b.cy, paint)
+        for (b in boxes) if (b.row < 3) canvas.drawLine(b.rodX - rodW * 0.25f, combY, b.rodX - rodW * 0.25f, b.cy + sink(b), paint)
 
         // Type bars: hairpin loops hanging on the comb rail.
         val loopW = unit * 0.2f
@@ -250,13 +250,14 @@ class TypewriterKeyboardView(context: Context) : View(context) {
         for (i in tineX.indices) {
             val top = tineTop(i)
             rect.set(tineX[i] - loopW / 2, top, tineX[i] + loopW / 2, combY + topArea * 0.12f)
+            paint.color = Color.BLACK // shaders are modulated by the paint's alpha
             paint.shader = metalShader
             paint.strokeWidth = unit * 0.075f
             canvas.drawRoundRect(rect, loopW / 2, loopW / 2, paint)
             paint.shader = null
-            paint.color = 0x66FFFFFF
-            paint.strokeWidth = unit * 0.018f
-            canvas.drawLine(rect.left - unit * 0.012f, top + loopW / 2, rect.left - unit * 0.012f, combY, paint)
+            paint.color = 0x38FFFFFF
+            paint.strokeWidth = unit * 0.016f
+            canvas.drawLine(rect.left, top + loopW / 2, rect.left, combY, paint)
         }
 
         // Comb rail.
@@ -335,6 +336,7 @@ class TypewriterKeyboardView(context: Context) : View(context) {
 
         // Chrome rim, dark groove, glossy face.
         paint.style = Paint.Style.FILL
+        paint.color = Color.BLACK // shaders are modulated by the paint's alpha
         paint.shader = rimShader
         rect.set(-hw, -r, hw, r)
         canvas.drawRoundRect(rect, r, r, paint)
