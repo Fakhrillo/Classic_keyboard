@@ -1,6 +1,6 @@
 <title>Typewriter Keys 3D</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Inter:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Gelasio&family=Inter:wght@400;600&display=swap">
 <style>
   /* Layout: one phone-width column — a sheet of paper on top, the keyboard tray pinned under it. */
   :root {
@@ -46,7 +46,7 @@
     background: var(--tray);
     border-radius: 22px;
     overflow: hidden;
-    aspect-ratio: 1.56;
+    aspect-ratio: 1.68;
     max-width: 100%;
     touch-action: none;
     user-select: none;
@@ -74,108 +74,120 @@
   const hintEl = document.getElementById('hint');
   const soundEl = document.getElementById('sound');
 
-  // ---- layout (key units: one letter key = 1 wide) -------------------------
-  const ROW = 1.09, R = 0.5, CAP_Z = 0.34;
-  const CREAM = '#efe6d2';
+  // ---- layout, measured from the reference (unit = one key pitch) ----------
+  const ROW = 1.167, D = 0.9, CAP_Z = 0.58, CORNER = 0.38;
+  const INK = '#dcd9cf';
+  const L = (label, cx) => ({ label, cx });
   const rows = [
-    'QWERTYUIOP'.split('').map(c => ({ label: c })),
-    'ASDFGHJKL'.split('').map(c => ({ label: c })),
-    [{ icon: 'shift', w: 1.3 }].concat('ZXCVBNM'.split('').map(c => ({ label: c })), [{ icon: 'backspace', w: 1.3, red: true }]),
-    [{ label: '123', w: 1.4 }, { icon: 'emoji' }, { icon: 'space', w: 4.85 }, { icon: 'enter', w: 2.35 }],
+    'QWERTYUIOP'.split('').map((c, i) => L(c, 0.5 + i)),
+    'ASDFGHJKL'.split('').map((c, i) => L(c, 1 + i)),
+    [{ icon: 'shift', cx: 0.695, w: 1.25 }].concat('ZXCVBNM'.split('').map((c, i) => L(c, 2 + i)), [{ icon: 'backspace', cx: 9.32, w: 1.29, red: true }]),
+    [{ label: '123', cx: 0.71, w: 1.32 }, { icon: 'emoji', cx: 2 }, { icon: 'space', cx: 5.01, w: 4.83 }, { icon: 'enter', cx: 8.78, w: 2.36 }],
   ];
 
   // ---- renderer ------------------------------------------------------------
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   tray.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xd4d5da);
-  const camera = new THREE.PerspectiveCamera(20, 1.56, 1, 200);
+  scene.background = new THREE.Color(0xd6d7db);
+  const VIEW_W = 10.9, VIEW_CY = -1.62;
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 100);
+  camera.position.set(5, VIEW_CY, 40);
+  camera.lookAt(5, VIEW_CY, 0);
 
-  // A tiny studio to reflect in the metal: grey room, bright soft boxes above.
+  // Soft studio reflections for the metal.
   (function () {
     const env = new THREE.Scene();
-    env.background = new THREE.Color(0x2c2d33);
+    env.background = new THREE.Color(0x25262a);
     const panel = (w, h, x, y, z, c) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
       m.position.set(x, y, z); m.lookAt(0, 0, 0); env.add(m);
     };
-    panel(9, 4, -4, 8, 9, 0xb0b0b0);
-    panel(5, 5, 9, 2, 6, 0x55565a);
-    panel(20, 4, 0, -10, 4, 0x3a3b40);
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(env, 0.05).texture;
+    panel(10, 6, -6, 6, 8, 0xd0d0d0);
+    panel(6, 6, 8, -6, 6, 0x6a6b70);
+    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(env, 0.08).texture;
   })();
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x9d9fa8, 0.5));
-  const sun = new THREE.DirectionalLight(0xffffff, 0.75);
-  sun.position.set(1.2, 4.5, 13);
-  sun.target.position.set(5, -1.6, 0);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 6, bottom: -6, near: 1, far: 40 });
-  sun.shadow.bias = -0.0006;
-  sun.shadow.radius = 4;
-  scene.add(sun, sun.target);
+  // Key light from the upper left, split into a small cluster so shadows fall soft to the lower right.
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xc4c6cc, 0.44));
+  [[0, 0], [0.9, 0.3], [-0.9, -0.3], [0.3, -0.9], [-0.3, 0.9], [0.6, 0.6], [-0.6, -0.6]].forEach(o => {
+    const sun = new THREE.DirectionalLight(0xffffff, 0.095);
+    sun.position.set(5 - 4.6 + o[0], VIEW_CY + 4.2 + o[1], 8);
+    sun.target.position.set(5, VIEW_CY, 0);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 6, bottom: -6, near: 1, far: 30 });
+    sun.shadow.bias = -0.002;
+    sun.shadow.radius = 3;
+    scene.add(sun, sun.target);
+  });
 
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0xd4d5da, roughness: 1, metalness: 0, envMapIntensity: 0.2 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: new THREE.Color(0xdcdde1).convertSRGBToLinear(), roughness: 1, metalness: 0, envMapIntensity: 0 }));
   ground.receiveShadow = true;
   scene.add(ground);
 
   // ---- materials -----------------------------------------------------------
-  const chrome = new THREE.MeshStandardMaterial({ color: 0x5c5d62, metalness: 1, roughness: 0.42, envMapIntensity: 0.7 });
-  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x0f0f11, metalness: 0.25, roughness: 0.55, envMapIntensity: 0.2 });
-  const blackBody = new THREE.MeshStandardMaterial({ color: 0x161618, metalness: 0.2, roughness: 0.6, envMapIntensity: 0.4 });
+  // r128 treats material colours as linear, so convert from the sRGB values we pick by eye.
+  const lin = hex => new THREE.Color(hex).convertSRGBToLinear();
+  const std = (color, metalness, roughness, env) => new THREE.MeshStandardMaterial({ color: lin(color), metalness, roughness, envMapIntensity: env });
+  const rimMat = std(0x3b3c40, 0.6, 0.4, 0.9);
+  const lipMat = std(0xb0afab, 0.2, 0.7, 0.3);
+  const bodyMat = std(0x18181a, 0.2, 0.6, 0.3);
+  const stemMat = std(0x2b2c2f, 0.45, 0.5, 0.6);
+  const barMat = std(0x343538, 0.5, 0.5, 0.6);
+  const hookMat = std(0x2e2f32, 0.5, 0.5, 0.6);
+  const tipMat = std(0x101012, 0.3, 0.6, 0.2);
 
-  function stadium(w, r, inset, target) {
-    const rr = r - inset, hw = Math.max(0, w / 2 - r);
+  function rrect(w, h, r, inset, target) {
+    const hw = w / 2 - inset, hh = h / 2 - inset, rr = Math.max(0.01, Math.min(r - inset, hw, hh));
     const s = target || new THREE.Shape();
-    s.absarc(hw, 0, rr, -Math.PI / 2, Math.PI / 2, false);
-    s.absarc(-hw, 0, rr, Math.PI / 2, Math.PI * 1.5, false);
+    s.moveTo(hw - rr, -hh);
+    s.absarc(hw - rr, -hh + rr, rr, -Math.PI / 2, 0, false);
+    s.absarc(hw - rr, hh - rr, rr, 0, Math.PI / 2, false);
+    s.absarc(-hw + rr, hh - rr, rr, Math.PI / 2, Math.PI, false);
+    s.absarc(-hw + rr, -hh + rr, rr, Math.PI, Math.PI * 1.5, false);
     s.closePath();
     return s;
   }
 
+  const FONT = 'Gelasio, Georgia, "Times New Roman", "Noto Serif", serif';
   function faceTexture(key, fw, fh) {
     const H = 256, W = Math.round(H * fw / fh);
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const g = c.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 0, H);
-    if (key.red) { grad.addColorStop(0, '#b02a31'); grad.addColorStop(1, '#7c161b'); }
-    else { grad.addColorStop(0, '#222225'); grad.addColorStop(1, '#141416'); }
-    g.fillStyle = grad; g.fillRect(0, 0, W, H);
-    g.fillStyle = CREAM; g.strokeStyle = CREAM; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.fillStyle = key.red ? '#640f15' : '#131315'; g.fillRect(0, 0, W, H);
+    const ink = key.red ? '#e6c9c4' : INK;
+    g.fillStyle = ink; g.strokeStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
     g.translate(W / 2, H / 2);
-    const u = H * 0.5;
+    const u = H * (key.icon && key.icon !== 'emoji' ? 0.7 : 0.56);
     if (key.label) {
-      g.font = (key.label.length > 1 ? H * 0.46 : H * 0.6) + 'px Georgia, "Times New Roman", "Noto Serif", serif';
+      g.font = (key.label.length > 1 ? H * 0.58 : H * 0.74) + 'px ' + FONT;
       g.textAlign = 'center'; g.textBaseline = 'alphabetic';
       const m = g.measureText(key.label);
-      const asc = m.actualBoundingBoxAscent || H * 0.4, desc = m.actualBoundingBoxDescent || 0;
+      const asc = m.actualBoundingBoxAscent || H * 0.4, desc = key.label === 'Q' || key.label === 'J' ? 0 : (m.actualBoundingBoxDescent || 0);
       g.fillText(key.label, 0, (asc - desc) / 2);
     } else if (key.icon === 'shift') {
-      g.lineWidth = u * 0.075; g.beginPath();
-      [[0, -0.5], [0.46, -0.02], [0.21, -0.02], [0.21, 0.4], [-0.21, 0.4], [-0.21, -0.02], [-0.46, -0.02]].forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * u, p[1] * u));
+      g.lineWidth = u * 0.06; g.beginPath();
+      [[0, -0.42], [0.36, -0.04], [0.17, -0.04], [0.17, 0.34], [-0.17, 0.34], [-0.17, -0.04], [-0.36, -0.04]].forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * u, p[1] * u));
       g.closePath(); g.stroke();
     } else if (key.icon === 'backspace') {
-      g.lineWidth = u * 0.075; g.beginPath();
-      [[-0.62, 0], [-0.26, -0.36], [0.56, -0.36], [0.56, 0.36], [-0.26, 0.36]].forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * u, p[1] * u));
+      g.lineWidth = u * 0.06; g.beginPath();
+      [[-0.5, 0], [-0.22, -0.32], [0.42, -0.32], [0.42, 0.32], [-0.22, 0.32]].forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * u, p[1] * u));
       g.closePath(); g.stroke(); g.beginPath();
-      g.moveTo(0, -0.15 * u); g.lineTo(0.3 * u, 0.15 * u); g.moveTo(0.3 * u, -0.15 * u); g.lineTo(0, 0.15 * u); g.stroke();
+      g.moveTo(-0.02 * u, -0.13 * u); g.lineTo(0.24 * u, 0.13 * u); g.moveTo(0.24 * u, -0.13 * u); g.lineTo(-0.02 * u, 0.13 * u); g.stroke();
     } else if (key.icon === 'enter') {
-      g.lineWidth = u * 0.075; g.beginPath();
-      g.moveTo(0.45 * u, -0.32 * u); g.lineTo(0.45 * u, 0.12 * u); g.lineTo(-0.42 * u, 0.12 * u);
-      g.moveTo(-0.18 * u, -0.12 * u); g.lineTo(-0.42 * u, 0.12 * u); g.lineTo(-0.18 * u, 0.36 * u); g.stroke();
+      g.lineWidth = u * 0.055; g.beginPath();
+      g.moveTo(0.06 * u, -0.3 * u); g.lineTo(0.42 * u, -0.3 * u); g.lineTo(0.42 * u, 0.12 * u); g.lineTo(-0.4 * u, 0.12 * u);
+      g.moveTo(-0.18 * u, -0.1 * u); g.lineTo(-0.4 * u, 0.12 * u); g.lineTo(-0.18 * u, 0.34 * u); g.stroke();
     } else if (key.icon === 'emoji') {
-      g.lineWidth = u * 0.07; g.beginPath(); g.arc(0, 0, 0.46 * u, 0, Math.PI * 2); g.stroke();
-      g.beginPath(); g.arc(0, 0.02 * u, 0.26 * u, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
-      g.beginPath(); g.arc(-0.17 * u, -0.12 * u, 0.055 * u, 0, 7); g.arc(0.17 * u, -0.12 * u, 0.055 * u, 0, 7); g.fill();
+      g.lineWidth = u * 0.06; g.beginPath(); g.arc(0, 0, 0.4 * u, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.arc(0, 0.04 * u, 0.24 * u, 0, Math.PI); g.closePath(); g.fill();
+      g.beginPath(); g.arc(-0.15 * u, -0.13 * u, 0.05 * u, 0, 7); g.arc(0.15 * u, -0.13 * u, 0.05 * u, 0, 7); g.fill();
     }
     const t = new THREE.CanvasTexture(c);
     t.encoding = THREE.sRGBEncoding;
@@ -184,108 +196,119 @@
   }
 
   // ---- build ---------------------------------------------------------------
-  const keys = [], pickable = [];
-  const RIM = 0.088;
+  const keys = [], pickable = [], bars = [];
+  const RIM = 0.064, LIP = 0.013;
+  const shadowed = m => { m.castShadow = true; return m; };
 
-  function buildKey(key, cx, cy, row) {
-    const w = key.w || 1;
-    const outerW = w - 0.03, outerR = R - 0.015;
+  function buildKey(key, row) {
+    const w = key.w || D, r = key.w ? CORNER : D / 2;
     const group = new THREE.Group();
-    group.position.set(cx, cy, CAP_Z);
+    group.position.set(key.cx, -row * ROW, CAP_Z);
 
-    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(outerW, outerR, 0.035), { depth: 0.16, bevelEnabled: false, curveSegments: 20 }), blackBody);
-    body.position.z = -0.16;
-    const ringShape = stadium(outerW, outerR, 0.022);
-    ringShape.holes.push(stadium(outerW, outerR, RIM, new THREE.Path()));
-    const ring = new THREE.Mesh(new THREE.ExtrudeGeometry(ringShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 4, curveSegments: 24 }), chrome);
-    ring.position.z = 0.02;
-    const faceGeo = new THREE.ShapeGeometry(stadium(outerW, outerR, RIM - 0.02), 24);
-    const fw = outerW - 2 * (RIM - 0.02), fh = 2 * (outerR - RIM + 0.02);
+    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(rrect(w, D, r, 0.012), { depth: 0.2, bevelEnabled: false, curveSegments: 20 }), bodyMat);
+    body.position.z = -0.22;
+    const rimShape = rrect(w, D, r, 0.026);
+    rimShape.holes.push(rrect(w, D, r, RIM, new THREE.Path()));
+    const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(rimShape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.024, bevelSegments: 5, curveSegments: 24 }), rimMat);
+    rim.position.z = -0.03;
+    const lipShape = rrect(w, D, r, RIM + 0.014);
+    lipShape.holes.push(rrect(w, D, r, RIM + 0.014 + LIP, new THREE.Path()));
+    const lip = new THREE.Mesh(new THREE.ShapeGeometry(lipShape, 24), lipMat);
+    lip.position.z = -0.012;
+    const fin = RIM + 0.014 + LIP - 0.004;
+    const faceGeo = new THREE.ShapeGeometry(rrect(w, D, r, fin), 24);
+    const fw = w - 2 * fin, fh = D - 2 * fin;
     const uv = faceGeo.attributes.uv, pos = faceGeo.attributes.position;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / fw + 0.5, pos.getY(i) / fh + 0.5);
-    const face = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({ map: faceTexture(key, fw, fh), roughness: 0.55, metalness: 0, envMapIntensity: 0.3 }));
-    face.position.z = 0.012;
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, CAP_Z, 10), darkMetal);
-    stem.rotation.x = Math.PI / 2; stem.position.z = -CAP_Z / 2 - 0.1;
+    const face = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({ map: faceTexture(key, fw, fh), roughness: 0.7, metalness: 0, envMapIntensity: 0.15 }));
+    face.position.z = -0.016;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, CAP_Z, 10), stemMat);
+    post.rotation.x = Math.PI / 2; post.position.z = -CAP_Z / 2 - 0.1;
 
-    [body, ring, face, stem].forEach(m => { m.castShadow = true; m.userData.key = key; group.add(m); });
-    face.castShadow = false;
-    pickable.push(body, ring, face);
+    [body, rim, lip, face, post].forEach(m => { m.userData.key = key; group.add(m); });
+    shadowed(body); shadowed(rim);
+    pickable.push(body, rim, face);
     scene.add(group);
-    Object.assign(key, { group, cx, cy, row, p: 0, down: 0, w });
+    Object.assign(key, { group, row, cy: -row * ROW, p: 0, down: 0 });
     keys.push(key);
   }
 
-  rows.forEach((row, ri) => {
-    const total = row.reduce((s, k) => s + (k.w || 1), 0);
-    let x = (10 - total) / 2;
-    row.forEach(k => { const w = k.w || 1; buildKey(k, x + w / 2, -ri * ROW, ri); x += w; });
-  });
+  function build() {
+    rows.forEach((row, ri) => row.forEach(k => buildKey(k, ri)));
 
-  // Type bars: a tight comb of hooked bars rising from behind the top row.
-  const bars = [];
-  const BAR_N = 18, BAR_X0 = 1.85, BAR_X1 = 8.15, BAR_Y = 0.2, BAR_LEN = 1.2;
-  const barGeo = new THREE.BoxGeometry(0.13, BAR_LEN, 0.09);
-  const hookGeo = new THREE.TorusGeometry(0.1, 0.06, 8, 14, Math.PI * 0.9);
-  for (let i = 0; i < BAR_N; i++) {
-    const g = new THREE.Group();
-    g.position.set(BAR_X0 + (BAR_X1 - BAR_X0) * i / (BAR_N - 1), BAR_Y, 0.12);
-    const bar = new THREE.Mesh(barGeo, darkMetal); bar.position.y = BAR_LEN / 2;
-    const hook = new THREE.Mesh(hookGeo, darkMetal); hook.position.set(-0.1, BAR_LEN, 0);
-    [bar, hook].forEach(m => { m.castShadow = true; g.add(m); });
-    scene.add(g);
-    bars.push({ g, kick: 0 });
-  }
+    // Type bars: 17 thin strips running behind every row, each topped with a hairpin hook.
+    const BAR_N = 17, BAR_X0 = 1.95, BAR_STEP = 0.378, TOP = 1.3, BOTTOM = -3 * ROW;
+    const stripGeo = new THREE.CylinderGeometry(0.05, 0.05, TOP - 0.55 - BOTTOM, 10);
+    const headGeo = new THREE.CylinderGeometry(0.063, 0.063, 0.62, 12);
+    const tipGeo = new THREE.CylinderGeometry(0.043, 0.043, 0.5, 10);
+    const bendGeo = new THREE.TorusGeometry(0.062, 0.05, 8, 14, Math.PI);
+    for (let i = 0; i < BAR_N; i++) {
+      const g = new THREE.Group();
+      g.position.set(BAR_X0 + BAR_STEP * i, 0, 0.1);
+      const strip = shadowed(new THREE.Mesh(stripGeo, barMat)); strip.position.y = (TOP - 0.55 + BOTTOM) / 2;
+      const head = shadowed(new THREE.Mesh(headGeo, hookMat)); head.position.set(0, TOP - 0.36, 0.02);
+      const bend = shadowed(new THREE.Mesh(bendGeo, hookMat)); bend.position.set(-0.062, TOP - 0.06, 0.02);
+      const tip = shadowed(new THREE.Mesh(tipGeo, tipMat)); tip.position.set(-0.124, TOP - 0.3, 0.02);
+      g.add(strip, head, bend, tip);
+      scene.add(g);
+      bars.push({ g, kick: 0 });
+    }
 
-  // Levers from every key in the top three rows, with little collars where rows meet.
-  const rodGeo = new THREE.CylinderGeometry(0.038, 0.038, 1, 8);
-  const collarGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.16, 10);
-  keys.forEach(k => {
-    k.bar = bars[Math.max(0, Math.min(BAR_N - 1, Math.round((k.cx - 0.5) / 9 * (BAR_N - 1))))];
-    if (k.row === 0 || k.row === 3) return;
-    let x = k.cx;
-    if (k.icon === 'shift') x = k.cx - k.w / 2 + 0.08;
-    if (k.icon === 'backspace') x = k.cx + k.w / 2 - 0.08;
-    const top = 0.25, len = top - k.cy;
-    const rod = new THREE.Mesh(rodGeo, darkMetal);
-    rod.scale.y = len; rod.position.set(x, k.cy + len / 2, 0.07); rod.castShadow = true;
-    scene.add(rod); k.rod = rod;
-    const collar = new THREE.Mesh(collarGeo, darkMetal);
-    collar.position.set(x, k.cy + ROW * 0.5, 0.07); collar.castShadow = true;
-    scene.add(collar);
-  });
+    // Key stems hang toward the bottom, passing between the keys of the rows below.
+    const stemGeo = new THREE.CylinderGeometry(0.052, 0.052, 1, 12);
+    const stem = (x, y0, y1) => {
+      const m = shadowed(new THREE.Mesh(stemGeo, stemMat));
+      m.scale.y = y0 - y1; m.position.set(x, (y0 + y1) / 2, 0.22); scene.add(m);
+    };
+    keys.forEach(k => {
+      k.bar = bars[Math.max(0, Math.min(BAR_N - 1, Math.round((k.cx - 0.5) / 9 * (BAR_N - 1))))];
+      if (k.row === 3) return;
+      const edge = k.label === 'Q' || k.label === 'P';
+      const end = k.row === 0 && !edge ? -3 * ROW : -(k.row + 1) * ROW;
+      const x = k.icon === 'shift' ? 0.74 : k.icon === 'backspace' ? 9.2 : k.cx;
+      stem(x, k.cy, end);
+    });
 
-  // Space bar linkage hanging below the bottom row.
-  (function () {
+    // Small pivot clamps where the reference shows them.
+    const clampGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.2, 12);
+    const capGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.26, 10);
+    [[0.5, 1, -1, -0.12], [1.5, 2, -1, 0.26], [1.5, 3, -1, 0.1], [3.5, 2, -1, 0.26], [8.5, 2, 1, 0.26], [9.5, 1, 1, -0.05]].forEach(c => {
+      const y = -c[1] * ROW + c[3], x = c[0] + c[2] * 0.11;
+      const a = shadowed(new THREE.Mesh(clampGeo, stemMat)); a.rotation.z = Math.PI / 2; a.position.set(x, y, 0.24);
+      const b = new THREE.Mesh(capGeo, rimMat); b.rotation.z = Math.PI / 2; b.position.set(x, y, 0.24);
+      scene.add(a, b);
+    });
+    stem(0.5, -ROW * 0.55, -ROW * 2);
+    stem(9.5, -ROW * 0.55, -ROW * 2);
+
+    // Space bar linkage: four looped hangers and two ribbed hinge blocks.
     const space = keys.find(k => k.icon === 'space');
-    const hw = space.w / 2;
-    [-0.74, -0.42, 0.42, 0.74].forEach(f => {
-      const x = space.cx + hw * f, outer = Math.abs(f) > 0.6, len = outer ? 1.0 : 0.82;
-      const rod = new THREE.Mesh(rodGeo, darkMetal);
-      rod.scale.y = len; rod.position.set(x, space.cy - len / 2, 0.15); rod.castShadow = true; scene.add(rod);
-      const foot = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.035, 8, 12, Math.PI), darkMetal);
-      foot.rotation.z = Math.PI; foot.position.set(x + 0.07, space.cy - len, 0.15); foot.castShadow = true; scene.add(foot);
-      if (outer) {
-        const br = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.2, 0.12), darkMetal);
-        br.position.set(x - 0.1, space.cy - 0.66, 0.16); br.castShadow = true; scene.add(br);
-        for (let i = -1; i <= 1; i++) {
-          const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.26, 6), darkMetal);
-          pin.position.set(x - 0.1 + i * 0.13, space.cy - 0.66, 0.2); scene.add(pin);
-        }
+    const barBottom = space.cy - D / 2;
+    [3.04, 4.22, 6.07, 6.88].forEach(x => {
+      const len = 0.62;
+      const rod = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, len + 0.3, 10), stemMat));
+      rod.position.set(x, barBottom - len / 2 + 0.15, 0.22); scene.add(rod);
+      const loop = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.032, 8, 16), stemMat));
+      loop.scale.y = 1.5; loop.position.set(x, barBottom - len - 0.05, 0.22); scene.add(loop);
+    });
+    [[3.15, 3.8], [6.2, 6.75]].forEach(b => {
+      const w = b[1] - b[0], cx = (b[0] + b[1]) / 2, y = barBottom - 0.17;
+      const block = shadowed(new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, 0.12), stemMat));
+      block.position.set(cx, y, 0.26); scene.add(block);
+      for (let i = 0; i < 4; i++) {
+        const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 8), rimMat);
+        rib.position.set(b[0] + w * (i + 0.5) / 4, y, 0.3); scene.add(rib);
       }
     });
-  })();
+  }
 
   // ---- camera fit ----------------------------------------------------------
   function resize() {
     const w = tray.clientWidth, h = tray.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    const dist = (10.9 / 2) / (Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
-    const tilt = 9 * Math.PI / 180, target = new THREE.Vector3(5, -1.42, 0.2);
-    camera.position.set(target.x, target.y - Math.sin(tilt) * dist, target.z + Math.cos(tilt) * dist);
-    camera.lookAt(target);
+    const hw = VIEW_W / 2, hh = hw * h / w;
+    Object.assign(camera, { left: -hw, right: hw, top: hh, bottom: -hh });
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(tray);
@@ -344,7 +367,6 @@
   window.addEventListener('pointerup', release);
   window.addEventListener('pointercancel', release);
 
-  // Physical keyboard works too.
   window.addEventListener('keydown', ev => {
     if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat) return;
     const k = keys.find(k => (k.label && k.label.length === 1 && k.label === ev.key.toUpperCase()) ||
@@ -367,18 +389,21 @@
     keys.forEach(k => {
       const target = k.down > 0 ? 1 : 0;
       k.p += (target - k.p) * Math.min(1, dt * (target ? 45 : 16));
-      k.group.position.z = CAP_Z - 0.13 * k.p;
+      k.group.position.z = CAP_Z - 0.2 * k.p;
+      const s = 1 - 0.035 * k.p; k.group.scale.set(s, s, 1);
     });
     bars.forEach(b => {
       if (b.kick > 0 && !(window.__freeze && b.kick <= 0.5)) b.kick = Math.max(0, b.kick - dt / 0.2);
-      const s = still ? 0 : Math.sin(Math.PI * (1 - b.kick)) * (b.kick > 0 ? 1 : 0);
-      b.g.rotation.x = s * 0.95;
-      b.g.position.z = 0.12 + s * 0.25;
-      b.g.position.y = BAR_Y + s * 0.32;
+      const s = still || b.kick <= 0 ? 0 : Math.sin(Math.PI * (1 - b.kick));
+      b.g.position.y = s * 0.3;
+      b.g.position.z = 0.1 + s * 0.08;
     });
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+
+  // Wait briefly for the serif face so the key legends are drawn in it.
+  const fontReady = document.fonts && document.fonts.load ? document.fonts.load('100px Gelasio').catch(() => {}) : Promise.resolve();
+  Promise.race([fontReady, new Promise(r => setTimeout(r, 1500))]).then(() => { build(); window.__ready = true; requestAnimationFrame(frame); }).catch(e => console.error('build failed: ' + (e && e.stack || e)));
 })();
 </script>
