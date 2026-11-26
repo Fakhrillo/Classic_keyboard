@@ -1,0 +1,384 @@
+<title>Typewriter Keys 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Inter:wght@400;600&display=swap">
+<style>
+  /* Layout: one phone-width column — a sheet of paper on top, the keyboard tray pinned under it. */
+  :root {
+    --desk: #eceef1;
+    --paper: #fbfaf6;
+    --ink: #1d1d20;
+    --muted: #6b6e76;
+    --tray: #d9dade;
+    --rule: #c9cbd1;
+    --accent: #a8262c;
+    --type: "Special Elite", "Courier New", monospace;
+    --ui: Inter, system-ui, sans-serif;
+  }
+  body {
+    background: var(--desk);
+    color: var(--ink);
+    font-family: var(--ui);
+    padding-block: 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .column { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--type); font-size: 1.35rem; font-weight: 400; margin: 0; }
+  label { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+  input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #paper {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    min-height: 7.5rem;
+    padding: 16px 18px;
+    font-family: var(--type);
+    font-size: 1.15rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  #paper .hint { color: var(--muted); }
+  #caret { display: inline-block; width: 0.55em; height: 1.05em; background: var(--accent); vertical-align: text-bottom; opacity: 0.75; }
+  #tray {
+    background: var(--tray);
+    border-radius: 22px;
+    overflow: hidden;
+    aspect-ratio: 1.56;
+    max-width: 100%;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #tray canvas { display: block; width: 100%; height: 100%; }
+  p.note { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+</style>
+
+<div class="column">
+  <header>
+    <h1>Typewriter Keys 3D</h1>
+    <label for="sound"><input type="checkbox" id="sound" checked> Sound</label>
+  </header>
+  <div id="paper" aria-live="polite"><span id="typed"></span><span id="caret"></span><span class="hint" id="hint"> tap the keys below</span></div>
+  <div id="tray"></div>
+  <p class="note">Design prototype for the Android keyboard. Letters, shift, space, backspace and return work; 123 and the smiley only animate.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const tray = document.getElementById('tray');
+  const typedEl = document.getElementById('typed');
+  const hintEl = document.getElementById('hint');
+  const soundEl = document.getElementById('sound');
+
+  // ---- layout (key units: one letter key = 1 wide) -------------------------
+  const ROW = 1.09, R = 0.5, CAP_Z = 0.34;
+  const CREAM = '#efe6d2';
+  const rows = [
+    'QWERTYUIOP'.split('').map(c => ({ label: c })),
+    'ASDFGHJKL'.split('').map(c => ({ label: c })),
+    [{ icon: 'shift', w: 1.3 }].concat('ZXCVBNM'.split('').map(c => ({ label: c })), [{ icon: 'backspace', w: 1.3, red: true }]),
+    [{ label: '123', w: 1.4 }, { icon: 'emoji' }, { icon: 'space', w: 4.85 }, { icon: 'enter', w: 2.35 }],
+  ];
+
+  // ---- renderer ------------------------------------------------------------
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  tray.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xd4d5da);
+  const camera = new THREE.PerspectiveCamera(20, 1.56, 1, 200);
+
+  // A tiny studio to reflect in the metal: grey room, bright soft boxes above.
+  (function () {
+    const env = new THREE.Scene();
+    env.background = new THREE.Color(0x2c2d33);
+    const panel = (w, h, x, y, z, c) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); m.lookAt(0, 0, 0); env.add(m);
+    };
+    panel(9, 4, -4, 8, 9, 0xb0b0b0);
+    panel(5, 5, 9, 2, 6, 0x55565a);
+    panel(20, 4, 0, -10, 4, 0x3a3b40);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(env, 0.05).texture;
+  })();
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9d9fa8, 0.5));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+  sun.position.set(1.2, 4.5, 13);
+  sun.target.position.set(5, -1.6, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 6, bottom: -6, near: 1, far: 40 });
+  sun.shadow.bias = -0.0006;
+  sun.shadow.radius = 4;
+  scene.add(sun, sun.target);
+
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0xd4d5da, roughness: 1, metalness: 0, envMapIntensity: 0.2 }));
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // ---- materials -----------------------------------------------------------
+  const chrome = new THREE.MeshStandardMaterial({ color: 0x5c5d62, metalness: 1, roughness: 0.42, envMapIntensity: 0.7 });
+  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x0f0f11, metalness: 0.25, roughness: 0.55, envMapIntensity: 0.2 });
+  const blackBody = new THREE.MeshStandardMaterial({ color: 0x161618, metalness: 0.2, roughness: 0.6, envMapIntensity: 0.4 });
+
+  function stadium(w, r, inset, target) {
+    const rr = r - inset, hw = Math.max(0, w / 2 - r);
+    const s = target || new THREE.Shape();
+    s.absarc(hw, 0, rr, -Math.PI / 2, Math.PI / 2, false);
+    s.absarc(-hw, 0, rr, Math.PI / 2, Math.PI * 1.5, false);
+    s.closePath();
+    return s;
+  }
+
+  function faceTexture(key, fw, fh) {
+    const H = 256, W = Math.round(H * fw / fh);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    if (key.red) { grad.addColorStop(0, '#b02a31'); grad.addColorStop(1, '#7c161b'); }
+    else { grad.addColorStop(0, '#222225'); grad.addColorStop(1, '#141416'); }
+    g.fillStyle = grad; g.fillRect(0, 0, W, H);
+    g.fillStyle = CREAM; g.strokeStyle = CREAM; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.translate(W / 2, H / 2);
+    const u = H * 0.5;
+    if (key.label) {
+      g.font = (key.label.length > 1 ? H * 0.46 : H * 0.6) + 'px Georgia, "Times New Roman", "Noto Serif", serif';
+      g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      const m = g.measureText(key.label);
+      const asc = m.actualBoundingBoxAscent || H * 0.4, desc = m.actualBoundingBoxDescent || 0;
+      g.fillText(key.label, 0, (asc - desc) / 2);
+    } else if (key.icon === 'shift') {
+      g.lineWidth = u * 0.075; g.beginPath();
+      [[0, -0.5], [0.46, -0.02], [0.21, -0.02], [0.21, 0.4], [-0.21, 0.4], [-0.21, -0.02], [-0.46, -0.02]].forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * u, p[1] * u));
+      g.closePath(); g.stroke();
+    } else if (key.icon === 'backspace') {
+      g.lineWidth = u * 0.075; g.beginPath();
+      [[-0.62, 0], [-0.26, -0.36], [0.56, -0.36], [0.56, 0.36], [-0.26, 0.36]].forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * u, p[1] * u));
+      g.closePath(); g.stroke(); g.beginPath();
+      g.moveTo(0, -0.15 * u); g.lineTo(0.3 * u, 0.15 * u); g.moveTo(0.3 * u, -0.15 * u); g.lineTo(0, 0.15 * u); g.stroke();
+    } else if (key.icon === 'enter') {
+      g.lineWidth = u * 0.075; g.beginPath();
+      g.moveTo(0.45 * u, -0.32 * u); g.lineTo(0.45 * u, 0.12 * u); g.lineTo(-0.42 * u, 0.12 * u);
+      g.moveTo(-0.18 * u, -0.12 * u); g.lineTo(-0.42 * u, 0.12 * u); g.lineTo(-0.18 * u, 0.36 * u); g.stroke();
+    } else if (key.icon === 'emoji') {
+      g.lineWidth = u * 0.07; g.beginPath(); g.arc(0, 0, 0.46 * u, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.arc(0, 0.02 * u, 0.26 * u, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+      g.beginPath(); g.arc(-0.17 * u, -0.12 * u, 0.055 * u, 0, 7); g.arc(0.17 * u, -0.12 * u, 0.055 * u, 0, 7); g.fill();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+
+  // ---- build ---------------------------------------------------------------
+  const keys = [], pickable = [];
+  const RIM = 0.088;
+
+  function buildKey(key, cx, cy, row) {
+    const w = key.w || 1;
+    const outerW = w - 0.03, outerR = R - 0.015;
+    const group = new THREE.Group();
+    group.position.set(cx, cy, CAP_Z);
+
+    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(outerW, outerR, 0.035), { depth: 0.16, bevelEnabled: false, curveSegments: 20 }), blackBody);
+    body.position.z = -0.16;
+    const ringShape = stadium(outerW, outerR, 0.022);
+    ringShape.holes.push(stadium(outerW, outerR, RIM, new THREE.Path()));
+    const ring = new THREE.Mesh(new THREE.ExtrudeGeometry(ringShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 4, curveSegments: 24 }), chrome);
+    ring.position.z = 0.02;
+    const faceGeo = new THREE.ShapeGeometry(stadium(outerW, outerR, RIM - 0.02), 24);
+    const fw = outerW - 2 * (RIM - 0.02), fh = 2 * (outerR - RIM + 0.02);
+    const uv = faceGeo.attributes.uv, pos = faceGeo.attributes.position;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / fw + 0.5, pos.getY(i) / fh + 0.5);
+    const face = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({ map: faceTexture(key, fw, fh), roughness: 0.55, metalness: 0, envMapIntensity: 0.3 }));
+    face.position.z = 0.012;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, CAP_Z, 10), darkMetal);
+    stem.rotation.x = Math.PI / 2; stem.position.z = -CAP_Z / 2 - 0.1;
+
+    [body, ring, face, stem].forEach(m => { m.castShadow = true; m.userData.key = key; group.add(m); });
+    face.castShadow = false;
+    pickable.push(body, ring, face);
+    scene.add(group);
+    Object.assign(key, { group, cx, cy, row, p: 0, down: 0, w });
+    keys.push(key);
+  }
+
+  rows.forEach((row, ri) => {
+    const total = row.reduce((s, k) => s + (k.w || 1), 0);
+    let x = (10 - total) / 2;
+    row.forEach(k => { const w = k.w || 1; buildKey(k, x + w / 2, -ri * ROW, ri); x += w; });
+  });
+
+  // Type bars: a tight comb of hooked bars rising from behind the top row.
+  const bars = [];
+  const BAR_N = 18, BAR_X0 = 1.85, BAR_X1 = 8.15, BAR_Y = 0.2, BAR_LEN = 1.2;
+  const barGeo = new THREE.BoxGeometry(0.13, BAR_LEN, 0.09);
+  const hookGeo = new THREE.TorusGeometry(0.1, 0.06, 8, 14, Math.PI * 0.9);
+  for (let i = 0; i < BAR_N; i++) {
+    const g = new THREE.Group();
+    g.position.set(BAR_X0 + (BAR_X1 - BAR_X0) * i / (BAR_N - 1), BAR_Y, 0.12);
+    const bar = new THREE.Mesh(barGeo, darkMetal); bar.position.y = BAR_LEN / 2;
+    const hook = new THREE.Mesh(hookGeo, darkMetal); hook.position.set(-0.1, BAR_LEN, 0);
+    [bar, hook].forEach(m => { m.castShadow = true; g.add(m); });
+    scene.add(g);
+    bars.push({ g, kick: 0 });
+  }
+
+  // Levers from every key in the top three rows, with little collars where rows meet.
+  const rodGeo = new THREE.CylinderGeometry(0.038, 0.038, 1, 8);
+  const collarGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.16, 10);
+  keys.forEach(k => {
+    k.bar = bars[Math.max(0, Math.min(BAR_N - 1, Math.round((k.cx - 0.5) / 9 * (BAR_N - 1))))];
+    if (k.row === 0 || k.row === 3) return;
+    let x = k.cx;
+    if (k.icon === 'shift') x = k.cx - k.w / 2 + 0.08;
+    if (k.icon === 'backspace') x = k.cx + k.w / 2 - 0.08;
+    const top = 0.25, len = top - k.cy;
+    const rod = new THREE.Mesh(rodGeo, darkMetal);
+    rod.scale.y = len; rod.position.set(x, k.cy + len / 2, 0.07); rod.castShadow = true;
+    scene.add(rod); k.rod = rod;
+    const collar = new THREE.Mesh(collarGeo, darkMetal);
+    collar.position.set(x, k.cy + ROW * 0.5, 0.07); collar.castShadow = true;
+    scene.add(collar);
+  });
+
+  // Space bar linkage hanging below the bottom row.
+  (function () {
+    const space = keys.find(k => k.icon === 'space');
+    const hw = space.w / 2;
+    [-0.74, -0.42, 0.42, 0.74].forEach(f => {
+      const x = space.cx + hw * f, outer = Math.abs(f) > 0.6, len = outer ? 1.0 : 0.82;
+      const rod = new THREE.Mesh(rodGeo, darkMetal);
+      rod.scale.y = len; rod.position.set(x, space.cy - len / 2, 0.15); rod.castShadow = true; scene.add(rod);
+      const foot = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.035, 8, 12, Math.PI), darkMetal);
+      foot.rotation.z = Math.PI; foot.position.set(x + 0.07, space.cy - len, 0.15); foot.castShadow = true; scene.add(foot);
+      if (outer) {
+        const br = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.2, 0.12), darkMetal);
+        br.position.set(x - 0.1, space.cy - 0.66, 0.16); br.castShadow = true; scene.add(br);
+        for (let i = -1; i <= 1; i++) {
+          const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.26, 6), darkMetal);
+          pin.position.set(x - 0.1 + i * 0.13, space.cy - 0.66, 0.2); scene.add(pin);
+        }
+      }
+    });
+  })();
+
+  // ---- camera fit ----------------------------------------------------------
+  function resize() {
+    const w = tray.clientWidth, h = tray.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    const dist = (10.9 / 2) / (Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+    const tilt = 9 * Math.PI / 180, target = new THREE.Vector3(5, -1.42, 0.2);
+    camera.position.set(target.x, target.y - Math.sin(tilt) * dist, target.z + Math.cos(tilt) * dist);
+    camera.lookAt(target);
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(tray);
+  resize();
+
+  // ---- typing --------------------------------------------------------------
+  let text = '', shift = false, audio = null;
+
+  function click(kind) {
+    if (!soundEl.checked) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const t = audio.currentTime, dur = kind === 'bell' ? 0.7 : 0.07;
+      const buf = audio.createBuffer(1, audio.sampleRate * 0.07, audio.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audio.sampleRate * 0.006));
+      const n = audio.createBufferSource(); n.buffer = buf;
+      const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = kind === 'space' ? 900 : 2600 + Math.random() * 500;
+      const g = audio.createGain(); g.gain.value = 0.6;
+      n.connect(f); f.connect(g); g.connect(audio.destination); n.start(t);
+      const o = audio.createOscillator(), og = audio.createGain();
+      o.frequency.value = kind === 'bell' ? 2093 : kind === 'space' ? 130 : 190;
+      og.gain.setValueAtTime(kind === 'bell' ? 0.25 : 0.35, t); og.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(og); og.connect(audio.destination); o.start(t); o.stop(t + dur);
+    } catch (e) { /* no audio available: stay silent */ }
+  }
+
+  function strike(key) {
+    key.down++;
+    key.bar.kick = 1;
+    if (key.label && key.label.length === 1) { text += shift ? key.label : key.label.toLowerCase(); shift = false; click('key'); }
+    else if (key.icon === 'space') { text += ' '; click('space'); }
+    else if (key.icon === 'backspace') { text = text.slice(0, -1); click('key'); }
+    else if (key.icon === 'enter') { text += '\n'; click('bell'); }
+    else if (key.icon === 'shift') { shift = !shift; click('key'); }
+    else click('key');
+    typedEl.textContent = text;
+    hintEl.hidden = true;
+  }
+
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), held = new Map();
+  function keyAt(ev) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(pickable, false)[0];
+    return hit ? hit.object.userData.key : null;
+  }
+  renderer.domElement.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    const k = keyAt(ev);
+    if (!k) return;
+    held.set(ev.pointerId, k);
+    strike(k);
+  });
+  const release = ev => { const k = held.get(ev.pointerId); if (k) { k.down = Math.max(0, k.down - 1); held.delete(ev.pointerId); } };
+  window.addEventListener('pointerup', release);
+  window.addEventListener('pointercancel', release);
+
+  // Physical keyboard works too.
+  window.addEventListener('keydown', ev => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat) return;
+    const k = keys.find(k => (k.label && k.label.length === 1 && k.label === ev.key.toUpperCase()) ||
+      (k.icon === 'space' && ev.key === ' ') || (k.icon === 'backspace' && ev.key === 'Backspace') || (k.icon === 'enter' && ev.key === 'Enter'));
+    if (!k) return;
+    ev.preventDefault();
+    if (ev.shiftKey && k.label) shift = true;
+    strike(k);
+    setTimeout(() => { k.down = Math.max(0, k.down - 1); }, 90);
+  });
+
+  // Test hook: hold a key down by label or icon name.
+  window.__hold = name => { const k = keys.find(k => k.label === name || k.icon === name); if (k) strike(k); };
+
+  // ---- animation -----------------------------------------------------------
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    keys.forEach(k => {
+      const target = k.down > 0 ? 1 : 0;
+      k.p += (target - k.p) * Math.min(1, dt * (target ? 45 : 16));
+      k.group.position.z = CAP_Z - 0.13 * k.p;
+    });
+    bars.forEach(b => {
+      if (b.kick > 0 && !(window.__freeze && b.kick <= 0.5)) b.kick = Math.max(0, b.kick - dt / 0.2);
+      const s = still ? 0 : Math.sin(Math.PI * (1 - b.kick)) * (b.kick > 0 ? 1 : 0);
+      b.g.rotation.x = s * 0.95;
+      b.g.position.z = 0.12 + s * 0.25;
+      b.g.position.y = BAR_Y + s * 0.32;
+    });
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
