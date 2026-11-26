@@ -60,17 +60,17 @@ class RenderTest {
             override fun onKey(key: Key) { typed += if (key.code == Code.TEXT) key.label else key.code.name }
             override fun onSpaceLongPress() = Unit
         }
-        val row = v.height / 5.45f
         // Top-left key, a key in the staggered second row, the space bar, and backspace.
-        tap(v, MotionEvent.ACTION_DOWN, 60f, row * 1.45f)
-        tap(v, MotionEvent.ACTION_UP, 60f, row * 1.45f)
-        tap(v, MotionEvent.ACTION_DOWN, 540f, row * 2.45f)
-        save(v, "pressed")
-        tap(v, MotionEvent.ACTION_UP, 540f, row * 2.45f)
-        tap(v, MotionEvent.ACTION_DOWN, 540f, row * 4.45f)
-        tap(v, MotionEvent.ACTION_UP, 540f, row * 4.45f)
-        tap(v, MotionEvent.ACTION_DOWN, 1010f, row * 3.45f)
-        tap(v, MotionEvent.ACTION_UP, 1010f, row * 3.45f)
+        fun strike(index: Int, shot: String? = null) {
+            val c = v.keyCenter(index)
+            tap(v, MotionEvent.ACTION_DOWN, c.x, c.y)
+            if (shot != null) { v.draw(Canvas(Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888))); save(v, shot) }
+            tap(v, MotionEvent.ACTION_UP, c.x, c.y)
+        }
+        strike(0)
+        strike(14, "pressed")
+        strike(30)
+        strike(27)
         assertEquals(listOf("Q", "G", "SPACE", "BACKSPACE"), typed)
     }
 }

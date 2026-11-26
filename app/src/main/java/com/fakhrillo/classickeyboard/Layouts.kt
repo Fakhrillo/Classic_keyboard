@@ -5,8 +5,9 @@ enum class Icon { NONE, SHIFT, BACKSPACE, ENTER, EMOJI }
 enum class Code { TEXT, SPACE, SHIFT, BACKSPACE, ENTER, LETTERS, SYMBOLS, SYMBOLS_ALT, EMOJI, EMOJI_NEXT }
 
 /**
- * One key cap. [weight] is the width in key units (a letter key is 1.0);
- * anything wider than 1.0 is drawn as a pill instead of a circle.
+ * One key cap. Every page has the same shape — rows of 10, 9, 9 and 4 keys —
+ * because the caps themselves are pre-rendered artwork; only the legends change.
+ * [weight] is kept for reference only.
  */
 class Key(
     val label: String,
@@ -38,19 +39,17 @@ object Layouts {
         listOf(Key("123", Code.SYMBOLS, MODE), Key("", Code.EMOJI, icon = Icon.EMOJI), space, enter),
     )
 
-    private fun punctuation() = ".,?!'".map { Key(it.toString(), weight = 1.4f) }
-
     val symbols: Page = listOf(
         chars("1234567890"),
-        chars("-/:;()$&@\""),
-        listOf(Key("#+=", Code.SYMBOLS_ALT, SIDE)) + punctuation() + backspace,
+        chars("-/:;()$@\""),
+        listOf(Key("#+=", Code.SYMBOLS_ALT, SIDE)) + chars(".,&?!'*") + backspace,
         listOf(Key("ABC", Code.LETTERS, MODE), Key("", Code.EMOJI, icon = Icon.EMOJI), space, enter),
     )
 
     val symbolsAlt: Page = listOf(
         chars("[]{}#%^*+="),
-        chars("_\\|~<>€£¥•"),
-        listOf(Key("123", Code.SYMBOLS, SIDE)) + punctuation() + backspace,
+        chars("_\\|~<>€£¥"),
+        listOf(Key("123", Code.SYMBOLS, SIDE)) + chars(".,?!'•°") + backspace,
         listOf(Key("ABC", Code.LETTERS, MODE), Key("", Code.EMOJI, icon = Icon.EMOJI), space, enter),
     )
 

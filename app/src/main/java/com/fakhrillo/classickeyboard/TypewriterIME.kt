@@ -54,7 +54,7 @@ class TypewriterIME : InputMethodService(), TypewriterKeyboardView.Listener {
         // Blend the system navigation bar into the keyboard body.
         window?.window?.let { w ->
             @Suppress("DEPRECATION")
-            w.navigationBarColor = 0xFFC3C5CB.toInt()
+            w.navigationBarColor = 0xFFDBDBE3.toInt()
             if (Build.VERSION.SDK_INT >= 26) {
                 @Suppress("DEPRECATION")
                 w.decorView.systemUiVisibility = w.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR

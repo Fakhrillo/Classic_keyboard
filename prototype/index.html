@@ -69,7 +69,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function () {
+  const Q = new URLSearchParams(location.search), BARE = +Q.get('bare') || 0, BLANK = Q.has('blank');
   const tray = document.getElementById('tray');
+  if (BARE) { document.body.style.cssText = 'margin:0;padding:0'; document.querySelector('.column').style.cssText = 'max-width:none;margin:0;display:block'; tray.style.cssText = 'position:fixed;left:0;top:0;border-radius:0;aspect-ratio:auto;max-width:none;width:' + BARE + 'px;height:' + Math.round(BARE / 1.62) + 'px'; }
   const typedEl = document.getElementById('typed');
   const hintEl = document.getElementById('hint');
   const soundEl = document.getElementById('sound');
@@ -87,7 +89,7 @@
 
   // ---- renderer ------------------------------------------------------------
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
+  renderer.setPixelRatio(BARE ? 1 : Math.min(window.devicePixelRatio || 1, 2.5));
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -101,18 +103,24 @@
   camera.position.set(5, VIEW_CY, 40);
   camera.lookAt(5, VIEW_CY, 0);
 
-  // Studio reflections for the metal: a bright soft box up-left, a dim fill down-right.
+  // Studio reflections for the metal: a dim ceiling, a bright horizon and floor, and two soft boxes up-left.
+  // Looking straight down, flat tops mirror the ceiling and every rounded edge picks up the bright horizon.
   (function () {
     const env = new THREE.Scene();
-    env.background = new THREE.Color(0x1c1d20);
-    const panel = (w, h, x, y, z, c) => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+    const c = document.createElement('canvas'); c.width = 16; c.height = 256;
+    const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+    [[0, '#56565a'], [0.28, '#3c3c40'], [0.41, '#5e5e63'], [0.47, '#c8c8ce'], [0.5, '#f4f4f8'], [1, '#dcdce4']].forEach(st => gr.addColorStop(st[0], st[1]));
+    g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
+    const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(30, 32, 24), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide }));
+    dome.rotation.x = Math.PI / 2; env.add(dome);
+    const panel = (w, h, x, y, z, v) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(v, v, v), side: THREE.DoubleSide }));
       m.position.set(x, y, z); m.lookAt(0, 0, 0); env.add(m);
     };
-    panel(7, 7, -1.5, 1.5, 12, 0xffffff);
-    panel(10, 6, -9, 9, 4, 0xc8c9cc);
-    panel(6, 6, 9, -8, 4, 0x77787c);
-    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(env, 0.06).texture;
+    panel(6, 6, -5, 5, 10, 1.6);
+    panel(14, 5, -12, 8, 4, 2.2);
+    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(env, 0.035).texture;
   })();
 
   // Key light from the upper left, split into a cluster so the shadows fall soft and long to the lower right.
@@ -148,10 +156,10 @@
 
   // ---- materials -----------------------------------------------------------
   const std = (color, metalness, roughness, env) => new THREE.MeshStandardMaterial({ color: lin(color), metalness, roughness, envMapIntensity: env });
-  const rimMat = std(0x454548, 0.55, 0.38, 0.8);
+  const rimMat = std(0x8a8b8f, 1, 0.28, 1);
   const bodyMat = std(0x0e0e10, 0.1, 0.8, 0.1);
-  const neckMat = std(0x26272a, 0.35, 0.5, 0.3);
-  const barMat = std(0x36373a, 0.35, 0.5, 0.3);
+  const neckMat = std(0x4c4d50, 1, 0.3, 1);
+  const barMat = std(0x707175, 1, 0.34, 1);
   const lineMat = std(0x9a9b9e, 0.2, 0.6, 0.3);
   const edgeMat = std(0x1d1d1f, 0.2, 0.6, 0.2);
   const slugMat = std(0x0b0c0f, 0.1, 0.9, 0.05);
@@ -170,7 +178,7 @@
   const shadowed = m => { m.castShadow = true; return m; };
   // A flat metal strip lying on the XY plane, running from y0 up to y1.
   function strip(x, y0, y1, w, z, mat, thick) {
-    const g = new THREE.ExtrudeGeometry(rrect(w, y1 - y0, w / 2, 0.012), { depth: thick || 0.03, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2, curveSegments: 8 });
+    const g = new THREE.ExtrudeGeometry(rrect(w, y1 - y0, w / 2, 0.02), { depth: thick || 0.03, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 4, curveSegments: 8 });
     const m = shadowed(new THREE.Mesh(g, mat));
     m.position.set(x, (y0 + y1) / 2, z);
     return m;
@@ -190,6 +198,7 @@
     g.fillStyle = key.red ? '#480e1a' : '#1d1d1f'; g.fillRect(0, 0, W, H);
     const ink = key.red ? '#e2bcc0' : INK;
     g.fillStyle = ink; g.strokeStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
+    if (BLANK) { const bt = new THREE.CanvasTexture(c); bt.encoding = THREE.sRGBEncoding; return bt; }
     g.translate(W / 2, H / 2);
     g.lineWidth = 0.03 * U;
     const path = pts => { g.beginPath(); pts.forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0] * U, p[1] * U)); };
@@ -241,7 +250,7 @@
     const mid = RIM / 2, half = 0.006;
     const rimShape = rrect(w, D, r, mid - half);
     rimShape.holes.push(rrect(w, D, r, mid + half, new THREE.Path()));
-    const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(rimShape, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.04, bevelSize: mid - half - 0.002, bevelSegments: 6, curveSegments: 32 }), rimMat);
+    const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(rimShape, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.04, bevelSize: mid - half - 0.002, bevelSegments: 10, curveSegments: 32 }), rimMat);
     rim.position.z = -0.045;
     const ring = (a, b, mat, z) => {
       const sh = rrect(w, D, r, a); sh.holes.push(rrect(w, D, r, b, new THREE.Path()));
@@ -256,7 +265,7 @@
     for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / fw + 0.5, pos.getY(i) / fh + 0.5);
     const face = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({ map: faceTexture(key, fw, fh), roughness: 0.85, metalness: 0, envMapIntensity: 0.12 }));
     face.position.z = -0.03;
-    const parts = [body, rim, face, edge, line];
+    const parts = [body, rim, face];
     if (row < 3) {
       // The cap's own neck: a dark rod leaving the bottom edge toward the row below.
       const edge = key.label === 'Q' ? 0.04 : key.label === 'P' ? -0.03 : 0;
@@ -402,6 +411,9 @@
     setTimeout(() => { k.down = Math.max(0, k.down - 1); }, 90);
   });
 
+  // Sprite hooks: pose exactly one key fully pressed (or none), and report key geometry.
+  window.__pose = i => { window.__manual = true; keys.forEach((k, j) => { k.p = j === i ? 1 : 0; }); };
+  window.__geom = () => keys.map(k => ({ row: k.row, cx: k.cx, cy: k.cy, w: k.w || D, reach: k.reach }));
   // Test hook: hold a key down by label or icon name.
   window.__hold = name => { const k = keys.find(k => k.label === name || k.icon === name); if (k) strike(k); };
 
@@ -413,7 +425,7 @@
     keys.forEach(k => {
       const target = k.down > 0 ? 1 : 0;
       if (window.__freeze && target) k.p = 1;
-      k.p += (target - k.p) * Math.min(1, dt * (target ? 40 : 18));
+      if (!window.__manual) k.p += (target - k.p) * Math.min(1, dt * (target ? 40 : 18));
       const p = still ? k.p * 0.4 : k.p;
       // The cap swings on its lever: it drops below its neighbours and slides toward the bottom of the screen.
       k.group.position.set(k.cx - 0.025 * p, k.cy - k.reach * p, CAP_Z - 0.2 * p);
